@@ -1,54 +1,50 @@
-# intellidocs: Intelligent Document Processing (Conceptual)
+# intellidocs: A Documentation Tracking Demonstration
 
-This project, intellidocs, is a conceptual framework for intelligent document processing.  While the specifics of its functionality are not fully defined, the core goal is to provide tools and utilities for efficient handling and analysis of various document types.  The current implementation focuses on Git integration for document version control and management.  Further development will explore advanced features such as NLP and machine learning for automated document understanding.
+This project, `intellidocs`, serves as a demonstration of a system capable of tracking changes and additions to project documentation.  While currently a simple example, it highlights the core concept of automatically updating documentation based on code modifications.  This README provides an overview of the project.
 
-## Key Features and Capabilities (Planned & Current)
 
-**Current Capabilities:**
+## Key Features and Capabilities
 
-* **Git Integration:**  Provides functionality to interact with Git repositories, enabling version control of documents.  This includes basic operations like cloning, committing, and pushing changes. (See `src/git_operations.py`)
-
-**Planned Features:**
-
-* **Document Parsing:**  Ability to parse various document formats (e.g., PDF, DOCX, TXT) and extract key information.
-* **Natural Language Processing (NLP):** Integration with NLP libraries for text analysis, sentiment analysis, and topic extraction.
-* **Machine Learning (ML):**  Use of ML models for tasks such as document classification, named entity recognition, and relationship extraction.
-* **Document Summarization:**  Generation of concise summaries of lengthy documents.
-* **Data Extraction and Transformation:**  Efficiently extracting structured data from unstructured documents and transforming it into usable formats.
+* **Documentation Tracking (Demonstration):**  The primary focus is showcasing the ability to monitor code changes and reflect these in associated documentation.  The current implementation is a basic proof-of-concept.
+* **Extensibility:** The design allows for expansion to include more sophisticated features such as automated documentation generation, version control integration, and more robust change tracking.
 
 
 ## Technology Stack
 
-* **Python:** The primary programming language.
-* **GitPython:** Library for interacting with Git repositories.
-* **(Future) NLP Libraries:**  Libraries like spaCy, NLTK, or Transformers (depending on project needs).
-* **(Future) ML Libraries:**  Libraries like scikit-learn, TensorFlow, or PyTorch (depending on project needs).
+* **Python:** The core language used for this demonstration.
 
 
 ## Quick Start Guide
 
-This project is currently in its early stages of development and does not have a standalone executable or a defined entry point.  To run the existing Git operations code:
+1. **Clone the Repository:**  Obtain a copy of the project using Git:  (replace with actual repo URL if applicable)  `git clone <repository_url>`
 
-1. **Clone the Repository:**  Clone this repository to your local machine using `git clone <repository_url>`.
-2. **Install Dependencies:**  Install required Python packages using `pip install -r requirements.txt` (a `requirements.txt` file should be created listing the dependencies).
-3. **(Optional) Configure Git:**  Ensure you have Git installed and configured with your credentials.
-4. **Run Example Code:**  Explore and run the example code within `src/git_operations.py`.  Note that this will require you to have a local Git repository or access to a remote repository.
+2. **Navigate to the Project Directory:** `cd intellidocs`
+
+3. **Run the Example:** Execute the `helloworld.py` script: `python helloworld.py`
+
+This will print "Hello World!" to the console, demonstrating the basic functionality.  Further development would involve integrating a documentation tracking mechanism to automatically update associated documentation based on changes in `helloworld.py` or other added files.
 
 
 ## Project Structure Overview
 
-```
-intellidocs/
-├── src/
-│   └── git_operations.py  # Provides Git interaction functionality.
-└── README.md             # This file.
-└── (Future) other modules...
-```
+The project currently consists of a single directory:
+
+* **`/` (root):** Contains the `helloworld.py` file and this README.md.
+
+Future iterations may include additional directories for organizing different aspects of the system (e.g., documentation, API, etc.).
 
 
 ## Links to Detailed Documentation
 
-Detailed documentation will be added as the project progresses.  Currently, the code comments within `src/git_operations.py` provide some information on the implemented functionality.  Future documentation will include API specifications (if applicable) and more comprehensive explanations of the project's features.
+Detailed documentation will be added as the project evolves.  For now, this README serves as the primary source of information.
 
 
-**Note:** This README is written based on the limited information provided.  As the project develops, this README will be updated to reflect its evolving features and capabilities.
+## Future Enhancements
+
+* **Automated Documentation Generation:**  Integrate tools to automatically generate documentation from code comments or docstrings.
+* **Version Control Integration:** Connect to version control systems (like Git) to track changes more effectively.
+* **Advanced Change Tracking:**  Implement mechanisms for detailed change logging and reporting.
+* **User Interface:**  Develop a user-friendly interface for viewing and managing documentation.
+
+
+This project is currently in its early stages and serves as a basic demonstration. The potential for expanding its capabilities is significant.

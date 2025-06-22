@@ -92,6 +92,32 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     return {"message": f"Event '{event_type}' received but ignored (not a push event)"}
 
 
+async def get_all_code_files(repo, ref, code_extensions):
+    """Get all code files from the repository"""
+    code_files = []
+
+    def traverse_contents(contents):
+        for content in contents:
+            if content.type == "file":
+                if any(content.name.endswith(ext) for ext in code_extensions):
+                    code_files.append(content.path)
+            elif content.type == "dir":
+                # Recursively traverse directories
+                try:
+                    sub_contents = repo.get_contents(content.path, ref=ref)
+                    traverse_contents(sub_contents)
+                except Exception as e:
+                    print(f"⚠️  Skipping directory {content.path}: {e}")
+
+    try:
+        root_contents = repo.get_contents("", ref=ref)
+        traverse_contents(root_contents)
+    except Exception as e:
+        print(f"❌ Error getting repository contents: {e}")
+
+    return code_files
+
+
 async def process_push_event(event_data):
     """Process push events with real GitHub API calls and documentation generation"""
     try:
@@ -192,13 +218,22 @@ async def process_push_event(event_data):
             f for f in changed_files if any(f.endswith(ext) for ext in code_extensions)
         ]
 
-        if not code_files:
-            print("📝 No code files to document")
-            return
+        # If docs repo doesn't exist, document entire codebase
+        if not docs_repo_exists:
+            print("🔄 Creating initial documentation for entire codebase...")
+            code_files = await get_all_code_files(repo, after_sha, code_extensions)
+            print(f"📄 Found {len(code_files)} code files in entire repository")
+        else:
+            # Only document changed files
+            if not code_files:
+                print("📝 No code files to document")
+                return
+            print(f"📄 Code files to document: {len(code_files)}")
 
-        print(f"📄 Code files to document: {len(code_files)}")
         for file in code_files[:10]:  # Show first 10
             print(f"  • {file}")
+        if len(code_files) > 10:
+            print(f"  ... and {len(code_files) - 10} more files")
 
         # Initialize documentation generator
         docs_generator = DocsGenerator()
@@ -207,15 +242,26 @@ async def process_push_event(event_data):
         docs_repo_owner = os.getenv("DOCS_REPO_OWNER", repository["owner"]["login"])
         docs_repo_name = os.getenv("DOCS_REPO_NAME", f"{repository['name']}-docs")
 
+        # Check if docs repository exists
+        docs_repo_exists = False
         try:
-            git_ops = GitOperations(github_client, docs_repo_owner, docs_repo_name)
-            print(f"✅ Initialized docs repository: {docs_repo_owner}/{docs_repo_name}")
-        except Exception as e:
-            print(f"❌ Failed to initialize docs repository: {e}")
-            return
+            docs_repo = github_client.get_repo(f"{docs_repo_owner}/{docs_repo_name}")
+            docs_repo_exists = True
+            print(
+                f"✅ Found existing docs repository: {docs_repo_owner}/{docs_repo_name}"
+            )
+        except:
+            print(
+                f"📝 Docs repository {docs_repo_owner}/{docs_repo_name} doesn't exist - will create with full codebase documentation"
+            )
+
+        git_ops = GitOperations()
+        print(f"✅ Initialized git operations for: {docs_repo_owner}/{docs_repo_name}")
 
         # Process each file and generate documentation
+        docs_content = {}
         docs_created = 0
+
         for file_path in code_files:
             try:
                 print(f"📖 Processing: {file_path}")
@@ -235,27 +281,33 @@ async def process_push_event(event_data):
                 documentation = docs_generator.summarise_file(file_path, content)
 
                 # Create docs file path
-                docs_file_path = f"docs/{file_path}.md"
-
-                # Save documentation to docs repository
-                git_ops.create_or_update_file(
-                    docs_file_path,
-                    documentation,
-                    f"Update documentation for {file_path}",
-                    after_sha,
-                )
+                docs_file_path = f"docs/{file_path.replace('/', '_')}.md"
+                docs_content[docs_file_path] = documentation
 
                 docs_created += 1
-                print(f"✅ Created documentation: {docs_file_path}")
+                print(f"✅ Generated documentation: {docs_file_path}")
 
             except Exception as e:
                 print(f"❌ Failed to process {file_path}: {e}")
                 continue
 
-        if docs_created > 0:
-            print(f"🎉 Successfully created {docs_created} documentation files!")
+        # Commit all documentation to the docs repository
+        if docs_content:
+            try:
+                commit_msg = f"docs: {'Initial documentation' if not docs_repo_exists else f'Update docs for {after_sha[:7]}'}"
+                await git_ops.commit_docs_to_repository(
+                    github_client,
+                    docs_repo_owner,
+                    repository["name"],
+                    docs_content,
+                    commit_msg,
+                )
+                print(f"🎉 Successfully committed {docs_created} documentation files!")
+            except Exception as e:
+                print(f"❌ Failed to commit documentation: {e}")
 
-            # Set commit status to success
+        # Set commit status
+        if docs_created > 0:
             try:
                 repo.create_status(
                     after_sha,

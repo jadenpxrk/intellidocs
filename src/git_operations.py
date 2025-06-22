@@ -100,65 +100,94 @@ class GitOperations:
                 print("📝 Docs branch doesn't exist - will create docs-only branch")
                 docs_branch_exists = False
 
-            # Handle docs branch creation and file updates
-            if not docs_branch_exists:
+            # Always sync docs branch with main branch first
+            try:
+                # Get the latest commit from main branch
                 try:
-                    # Create an orphan docs branch using a different approach
-                    # We'll create an empty commit first, then add files
-                    
-                    # Create a blob for the first documentation file
-                    first_doc_path = list(docs_content.keys())[0]
-                    first_doc_content = docs_content[first_doc_path]
-                    
-                    # Create blob for the content
-                    blob = repo_client.create_git_blob(first_doc_content, "utf-8")
-                    print(f"✅ Created blob for {first_doc_path}")
-                    
-                    # Create tree with the first file
-                    from github import InputGitTreeElement
-                    tree_elements = [
-                        InputGitTreeElement(
-                            path=first_doc_path,
-                            mode="100644",
-                            type="blob",
-                            sha=blob.sha
-                        )
-                    ]
-                    tree = repo_client.create_git_tree(tree_elements)
-                    print(f"✅ Created tree")
-                    
-                    # Create commit
-                    commit = repo_client.create_git_commit(
-                        "docs: Initialize documentation branch",
-                        tree.sha,
-                        []  # No parents - this creates an orphan branch
-                    )
-                    print(f"✅ Created initial commit")
-                    
-                    # Create the docs branch reference pointing to this commit
-                    repo_client.create_git_ref(ref="refs/heads/docs", sha=commit.sha)
-                    print(f"✅ Created docs branch")
+                    main_branch = repo_client.get_branch("main")
+                    latest_main_sha = main_branch.commit.sha
+                except:
+                    try:
+                        master_branch = repo_client.get_branch("master")
+                        latest_main_sha = master_branch.commit.sha
+                    except:
+                        # Use the latest commit
+                        commits = repo_client.get_commits()
+                        latest_main_sha = commits[0].sha
 
-                    # Now add remaining documentation files to the docs branch
-                    remaining_docs = {k: v for k, v in docs_content.items() if k != first_doc_path}
-                    for doc_path, content in remaining_docs.items():
+                if not docs_branch_exists:
+                    # Create the docs branch from latest main
+                    repo_client.create_git_ref(
+                        ref="refs/heads/docs", sha=latest_main_sha
+                    )
+                    print("✅ Created docs branch from latest main")
+                else:
+                    # Update docs branch to match main branch (fast-forward)
+                    docs_ref = repo_client.get_git_ref("heads/docs")
+                    docs_ref.edit(sha=latest_main_sha)
+                    print("✅ Updated docs branch to match latest main")
+
+                # Remove source code files from docs branch to keep it clean
+                print("🧹 Cleaning source code files from docs branch...")
+                try:
+                    # Get all files in the docs branch
+                    contents = repo_client.get_contents("", ref="docs")
+
+                    def collect_source_files(contents):
+                        files_to_remove = []
+                        for content in contents:
+                            if content.type == "file":
+                                # Remove source code files but keep documentation and config files
+                                if (
+                                    not content.path.startswith("docs/")
+                                    and content.path
+                                    not in [
+                                        "README.md",
+                                        "LICENSE",
+                                        ".gitignore",
+                                        "requirements.txt",
+                                        "package.json",
+                                        "Dockerfile",
+                                    ]
+                                    and not content.path.endswith(".md")
+                                ):
+                                    files_to_remove.append(content)
+                            elif content.type == "dir" and content.name not in [
+                                "docs",
+                                ".git",
+                                ".github",
+                            ]:
+                                # Remove source directories like src/, but keep docs/ and config dirs
+                                try:
+                                    sub_contents = repo_client.get_contents(
+                                        content.path, ref="docs"
+                                    )
+                                    files_to_remove.extend(
+                                        collect_source_files(sub_contents)
+                                    )
+                                except:
+                                    pass
+                        return files_to_remove
+
+                    source_files_to_remove = collect_source_files(contents)
+
+                    # Remove source files
+                    for file_content in source_files_to_remove:
                         try:
-                            repo_client.create_file(
-                                doc_path,
-                                f"docs: Add {doc_path}",
-                                content,
+                            repo_client.delete_file(
+                                file_content.path,
+                                f"docs: Remove source file {file_content.path}",
+                                file_content.sha,
                                 branch="docs",
                             )
-                            print(f"📝 Created: {doc_path}")
+                            print(f"🗑️  Removed: {file_content.path}")
                         except Exception as e:
-                            print(f"❌ Failed to create {doc_path}: {e}")
-                            continue
+                            print(f"⚠️  Could not remove {file_content.path}: {e}")
 
                 except Exception as e:
-                    print(f"❌ Failed to create docs branch: {e}")
-                    raise
-            else:
-                # Update existing docs branch
+                    print(f"⚠️  Could not clean source files: {e}")
+
+                # Now add/update documentation files in the docs branch
                 for doc_path, content in docs_content.items():
                     try:
                         # Try to get existing file in docs branch
@@ -188,6 +217,10 @@ class GitOperations:
                     except Exception as e:
                         print(f"❌ Failed to create/update {doc_path}: {e}")
                         continue
+
+            except Exception as e:
+                print(f"❌ Failed to sync docs branch: {e}")
+                raise
 
             print(f"✅ Successfully updated docs branch with {len(docs_content)} files")
 

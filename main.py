@@ -218,28 +218,22 @@ async def process_push_event(event_data):
             f for f in changed_files if any(f.endswith(ext) for ext in code_extensions)
         ]
 
-        # Initialize git operations for docs repository
-        docs_repo_owner = os.getenv("DOCS_REPO_OWNER", repository["owner"]["login"])
-        docs_repo_name = os.getenv("DOCS_REPO_NAME", f"{repository['name']}-docs")
-
-        # Check if docs repository exists
-        docs_repo_exists = False
+        # Check if docs branch exists in the same repository
+        docs_branch_exists = False
         try:
-            docs_repo = github_client.get_repo(f"{docs_repo_owner}/{docs_repo_name}")
-            docs_repo_exists = True
-            print(
-                f"✅ Found existing docs repository: {docs_repo_owner}/{docs_repo_name}"
-            )
+            docs_branch = repo.get_branch("docs")
+            docs_branch_exists = True
+            print("✅ Found existing docs branch")
         except:
             print(
-                f"📝 Docs repository {docs_repo_owner}/{docs_repo_name} doesn't exist - will create with full codebase documentation"
+                "📝 Docs branch doesn't exist - will create with full codebase documentation"
             )
 
         git_ops = GitOperations()
-        print(f"✅ Initialized git operations for: {docs_repo_owner}/{docs_repo_name}")
+        print("✅ Initialized git operations")
 
-        # If docs repo doesn't exist, document entire codebase
-        if not docs_repo_exists:
+        # If docs branch doesn't exist, document entire codebase
+        if not docs_branch_exists:
             print("🔄 Creating initial documentation for entire codebase...")
             code_files = await get_all_code_files(repo, after_sha, code_extensions)
             print(f"📄 Found {len(code_files)} code files in entire repository")
@@ -291,14 +285,12 @@ async def process_push_event(event_data):
                 print(f"❌ Failed to process {file_path}: {e}")
                 continue
 
-        # Commit all documentation to the docs repository
+        # Commit all documentation to the docs branch
         if docs_content:
             try:
-                commit_msg = f"docs: {'Initial documentation' if not docs_repo_exists else f'Update docs for {after_sha[:7]}'}"
-                await git_ops.commit_docs_to_repository(
-                    github_client,
-                    docs_repo_owner,
-                    repository["name"],
+                commit_msg = f"docs: {'Initial documentation' if not docs_branch_exists else f'Update docs for {after_sha[:7]}'}"
+                await git_ops.commit_docs_to_branch(
+                    repo,
                     docs_content,
                     commit_msg,
                 )

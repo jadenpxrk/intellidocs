@@ -20,15 +20,50 @@ class GitOperations:
             docs_repo = github_client.get_repo(f"{repo_owner}/{docs_repo_name}")
             print(f"✅ Using existing docs repository: {repo_owner}/{docs_repo_name}")
         except:
-            # Create new docs repository
+            # Create new docs repository using GitHub API directly
             try:
-                user = github_client.get_user()
-                docs_repo = user.create_repo(
-                    docs_repo_name,
-                    description=f"Auto-generated documentation for {repo_name}",
-                    auto_init=True,
+                import requests
+
+                # Get the access token from the github_client
+                access_token = github_client._Github__requester._Requester__authorizationHeader.split(
+                    " "
+                )[
+                    1
+                ]
+
+                # Create repository using GitHub API
+                create_repo_url = "https://api.github.com/user/repos"
+                headers = {
+                    "Authorization": f"token {access_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                }
+
+                repo_data = {
+                    "name": docs_repo_name,
+                    "description": f"Auto-generated documentation for {repo_name}",
+                    "auto_init": True,
+                    "private": False,
+                }
+
+                response = requests.post(
+                    create_repo_url, headers=headers, json=repo_data
                 )
-                print(f"✅ Created new docs repository: {repo_owner}/{docs_repo_name}")
+
+                if response.status_code == 201:
+                    print(
+                        f"✅ Created new docs repository: {repo_owner}/{docs_repo_name}"
+                    )
+                    # Get the newly created repository
+                    docs_repo = github_client.get_repo(f"{repo_owner}/{docs_repo_name}")
+                else:
+                    print(
+                        f"❌ Failed to create docs repository: {response.status_code} {response.text}"
+                    )
+                    raise Exception(
+                        f"Failed to create repository: {response.status_code} - {response.text}"
+                    )
+
             except Exception as e:
                 print(f"❌ Failed to create docs repository: {e}")
                 raise
@@ -53,81 +88,65 @@ class GitOperations:
                 continue
 
     async def commit_docs_to_branch(self, repo_client, docs_content, commit_message):
-        docs_repo_name = os.getenv("DOCS_REPO", "intellidocs-output")
-
-        with tempfile.TemporaryDirectory() as temp_dir:
+        """Create or update documentation in a docs branch of the same repository"""
+        try:
+            # Check if docs branch exists
             try:
-                # Clone the docs repository (different from source repo)
-                docs_repo_url = (
-                    f"https://github.com/{repo_client.owner.login}/{docs_repo_name}.git"
-                )
-
+                docs_branch = repo_client.get_branch("docs")
+                print("📝 Using existing docs branch")
+                base_sha = docs_branch.commit.sha
+            except:
+                # Create docs branch from main/master
                 try:
-                    # Try to clone existing docs repo
-                    repo = Repo.clone_from(docs_repo_url, temp_dir)
-                except:
-                    # If docs repo doesn't exist, create it from source repo
-                    print(
-                        f"Docs repository {docs_repo_name} not found. Creating new repository structure."
-                    )
-                    # Initialize a new repo
-                    repo = Repo.init(temp_dir)
-
-                    # Create initial README
-                    readme_path = os.path.join(temp_dir, "README.md")
-                    with open(readme_path, "w") as f:
-                        f.write(f"# {docs_repo_name}\n\nAuto-generated documentation\n")
-
-                    repo.index.add(["README.md"])
-                    repo.index.commit("Initial commit")
-
-                # Ensure we're on main branch
-                try:
-                    main_branch = repo.heads.main
-                    main_branch.checkout()
+                    main_branch = repo_client.get_branch("main")
+                    base_sha = main_branch.commit.sha
+                    print("📝 Creating docs branch from main")
                 except:
                     try:
-                        main_branch = repo.heads.master
-                        main_branch.checkout()
+                        master_branch = repo_client.get_branch("master")
+                        base_sha = master_branch.commit.sha
+                        print("📝 Creating docs branch from master")
                     except:
-                        # Create main branch if it doesn't exist
-                        main_branch = repo.create_head("main")
-                        main_branch.checkout()
+                        # Use the latest commit as base
+                        commits = repo_client.get_commits()
+                        base_sha = commits[0].sha
+                        print("📝 Creating docs branch from latest commit")
 
-                # Create docs directory
-                docs_dir = os.path.join(temp_dir, "docs")
-                os.makedirs(docs_dir, exist_ok=True)
+                # Create the docs branch
+                repo_client.create_git_ref(ref="refs/heads/docs", sha=base_sha)
+                print("✅ Created docs branch")
 
-                # Write all documentation files
-                for doc_path, content in docs_content.items():
-                    full_path = os.path.join(temp_dir, doc_path)
-                    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-
-                    with open(full_path, "w", encoding="utf-8") as f:
-                        f.write(content)
-
-                # Add and commit changes
-                repo.git.add("docs/")
-
-                if repo.is_dirty():
-                    repo.index.commit(commit_message)
-
-                    # Push to docs repository
-                    if repo.remotes:
-                        origin = repo.remotes.origin
-                        origin.push("main")
-                    else:
-                        print(
-                            f"No remote configured. You'll need to manually create and push to {docs_repo_name}"
+            # Create or update each documentation file
+            for doc_path, content in docs_content.items():
+                try:
+                    # Try to get existing file in docs branch
+                    try:
+                        existing_file = repo_client.get_contents(doc_path, ref="docs")
+                        # Update existing file
+                        repo_client.update_file(
+                            doc_path,
+                            f"Update {doc_path}",
+                            content,
+                            existing_file.sha,
+                            branch="docs",
                         )
+                        print(f"📝 Updated: {doc_path}")
+                    except:
+                        # Create new file
+                        repo_client.create_file(
+                            doc_path, f"Create {doc_path}", content, branch="docs"
+                        )
+                        print(f"📝 Created: {doc_path}")
 
-            except Exception as e:
-                print(f"Error in git operations: {e}")
-                # Fallback: create docs in same repo if separate repo fails
-                await self.fallback_to_same_repo(
-                    repo_client, docs_content, commit_message
-                )
-                raise
+                except Exception as e:
+                    print(f"❌ Failed to create/update {doc_path}: {e}")
+                    continue
+
+            print(f"✅ Successfully updated docs branch with {len(docs_content)} files")
+
+        except Exception as e:
+            print(f"❌ Error in docs branch operations: {e}")
+            raise
 
     async def fallback_to_same_repo(self, repo_client, docs_content, commit_message):
         """Fallback method to create docs branch in same repository"""

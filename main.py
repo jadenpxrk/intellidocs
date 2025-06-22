@@ -309,8 +309,8 @@ async def process_push_event(event_data):
         # Set commit status
         if docs_created > 0:
             try:
-                repo.create_status(
-                    after_sha,
+                commit = repo.get_commit(after_sha)
+                commit.create_status(
                     state="success",
                     description=f"Generated docs for {docs_created} files",
                     context="intellidocs/documentation",

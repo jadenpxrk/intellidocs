@@ -214,7 +214,7 @@ class GitOperations:
                             print(f"⚠️  Could not sync {main_path}: {e}")
 
                     # Remove source files from docs that no longer exist in main (but keep their documentation)
-                    for docs_path, docs_content in docs_files.items():
+                    for docs_path, docs_file in docs_files.items():
                         if (
                             not docs_path.startswith("docs/")
                             and docs_path
@@ -233,7 +233,7 @@ class GitOperations:
                                 repo_client.delete_file(
                                     docs_path,
                                     f"docs: Remove {docs_path} (deleted from main)",
-                                    docs_content.sha,
+                                    docs_file.sha,
                                     branch="docs",
                                 )
                                 print(f"🗑️  Removed: {docs_path} (no longer in main)")

@@ -91,56 +91,82 @@ class GitOperations:
         """Create or update documentation in a docs branch of the same repository"""
         try:
             # Check if docs branch exists
+            docs_branch_exists = False
             try:
                 docs_branch = repo_client.get_branch("docs")
                 print("📝 Using existing docs branch")
-                base_sha = docs_branch.commit.sha
+                docs_branch_exists = True
             except:
-                # Create docs branch from main/master
-                try:
-                    main_branch = repo_client.get_branch("main")
-                    base_sha = main_branch.commit.sha
-                    print("📝 Creating docs branch from main")
-                except:
-                    try:
-                        master_branch = repo_client.get_branch("master")
-                        base_sha = master_branch.commit.sha
-                        print("📝 Creating docs branch from master")
-                    except:
-                        # Use the latest commit as base
-                        commits = repo_client.get_commits()
-                        base_sha = commits[0].sha
-                        print("📝 Creating docs branch from latest commit")
+                print("📝 Docs branch doesn't exist - will create docs-only branch")
+                docs_branch_exists = False
 
-                # Create the docs branch
-                repo_client.create_git_ref(ref="refs/heads/docs", sha=base_sha)
-                print("✅ Created docs branch")
+            # Handle docs branch creation and file updates
+            if not docs_branch_exists:
+                # Create docs branch with first documentation file
+                first_doc_path = list(docs_content.keys())[0]
+                first_doc_content = docs_content[first_doc_path]
 
-            # Create or update each documentation file
-            for doc_path, content in docs_content.items():
                 try:
-                    # Try to get existing file in docs branch
-                    try:
-                        existing_file = repo_client.get_contents(doc_path, ref="docs")
-                        # Update existing file
-                        repo_client.update_file(
-                            doc_path,
-                            f"Update {doc_path}",
-                            content,
-                            existing_file.sha,
-                            branch="docs",
-                        )
-                        print(f"📝 Updated: {doc_path}")
-                    except:
-                        # Create new file
-                        repo_client.create_file(
-                            doc_path, f"Create {doc_path}", content, branch="docs"
-                        )
-                        print(f"📝 Created: {doc_path}")
+                    # Create the docs branch with the first file
+                    repo_client.create_file(
+                        first_doc_path,
+                        "docs: Initialize documentation branch",
+                        first_doc_content,
+                        branch="docs",
+                    )
+                    print(f"✅ Created docs branch with: {first_doc_path}")
+
+                    # Create remaining files
+                    remaining_docs = {
+                        k: v for k, v in docs_content.items() if k != first_doc_path
+                    }
+                    for doc_path, content in remaining_docs.items():
+                        try:
+                            repo_client.create_file(
+                                doc_path,
+                                f"docs: Add {doc_path}",
+                                content,
+                                branch="docs",
+                            )
+                            print(f"📝 Created: {doc_path}")
+                        except Exception as e:
+                            print(f"❌ Failed to create {doc_path}: {e}")
+                            continue
 
                 except Exception as e:
-                    print(f"❌ Failed to create/update {doc_path}: {e}")
-                    continue
+                    print(f"❌ Failed to create docs branch: {e}")
+                    raise
+            else:
+                # Update existing docs branch
+                for doc_path, content in docs_content.items():
+                    try:
+                        # Try to get existing file in docs branch
+                        try:
+                            existing_file = repo_client.get_contents(
+                                doc_path, ref="docs"
+                            )
+                            # Update existing file
+                            repo_client.update_file(
+                                doc_path,
+                                f"docs: Update {doc_path}",
+                                content,
+                                existing_file.sha,
+                                branch="docs",
+                            )
+                            print(f"📝 Updated: {doc_path}")
+                        except:
+                            # Create new file
+                            repo_client.create_file(
+                                doc_path,
+                                f"docs: Add {doc_path}",
+                                content,
+                                branch="docs",
+                            )
+                            print(f"📝 Created: {doc_path}")
+
+                    except Exception as e:
+                        print(f"❌ Failed to create/update {doc_path}: {e}")
+                        continue
 
             print(f"✅ Successfully updated docs branch with {len(docs_content)} files")
 

@@ -218,26 +218,6 @@ async def process_push_event(event_data):
             f for f in changed_files if any(f.endswith(ext) for ext in code_extensions)
         ]
 
-        # If docs repo doesn't exist, document entire codebase
-        if not docs_repo_exists:
-            print("🔄 Creating initial documentation for entire codebase...")
-            code_files = await get_all_code_files(repo, after_sha, code_extensions)
-            print(f"📄 Found {len(code_files)} code files in entire repository")
-        else:
-            # Only document changed files
-            if not code_files:
-                print("📝 No code files to document")
-                return
-            print(f"📄 Code files to document: {len(code_files)}")
-
-        for file in code_files[:10]:  # Show first 10
-            print(f"  • {file}")
-        if len(code_files) > 10:
-            print(f"  ... and {len(code_files) - 10} more files")
-
-        # Initialize documentation generator
-        docs_generator = DocsGenerator()
-
         # Initialize git operations for docs repository
         docs_repo_owner = os.getenv("DOCS_REPO_OWNER", repository["owner"]["login"])
         docs_repo_name = os.getenv("DOCS_REPO_NAME", f"{repository['name']}-docs")
@@ -257,6 +237,26 @@ async def process_push_event(event_data):
 
         git_ops = GitOperations()
         print(f"✅ Initialized git operations for: {docs_repo_owner}/{docs_repo_name}")
+
+        # If docs repo doesn't exist, document entire codebase
+        if not docs_repo_exists:
+            print("🔄 Creating initial documentation for entire codebase...")
+            code_files = await get_all_code_files(repo, after_sha, code_extensions)
+            print(f"📄 Found {len(code_files)} code files in entire repository")
+        else:
+            # Only document changed files
+            if not code_files:
+                print("📝 No code files to document")
+                return
+            print(f"📄 Code files to document: {len(code_files)}")
+
+        for file in code_files[:10]:  # Show first 10
+            print(f"  • {file}")
+        if len(code_files) > 10:
+            print(f"  ... and {len(code_files) - 10} more files")
+
+        # Initialize documentation generator
+        docs_generator = DocsGenerator()
 
         # Process each file and generate documentation
         docs_content = {}

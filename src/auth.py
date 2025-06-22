@@ -26,12 +26,13 @@ class GitHubAppAuth:
             )
 
     def get_installation_client(self, installation_id):
-        auth = Auth.AppAuth(int(self.app_id), self.private_key)
+        # Create App authentication
+        app_auth = Auth.AppAuth(int(self.app_id), self.private_key)
 
-        # Get an installation access token
-        installation_auth = auth.get_installation_auth(installation_id)
+        # Create installation authentication
+        installation_auth = Auth.AppInstallationAuth(app_auth, installation_id)
 
-        # Return a PyGithub client authenticated as the installation
+        # Return GitHub client with installation auth
         return Github(auth=installation_auth)
 
     def get_repo_client(self, repo_full_name, installation_id):

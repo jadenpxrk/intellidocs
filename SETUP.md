@@ -1,4 +1,4 @@
-# IntelliDocs Setup Guide
+`# IntelliDocs Setup Guide
 
 Complete setup instructions for the IntelliDocs GitHub App - an automated documentation generator that creates docs for your code changes.
 

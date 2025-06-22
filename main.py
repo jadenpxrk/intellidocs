@@ -113,9 +113,27 @@ async def process_push_event(event_data):
 
         # Initialize GitHub authentication
         try:
-            installation_id = event_data["installation"]["id"]
+            # Try to get installation ID from webhook payload first
+            installation_id = None
+            if "installation" in event_data and "id" in event_data["installation"]:
+                installation_id = event_data["installation"]["id"]
+                print(f"🔍 Found installation ID in payload: {installation_id}")
+            else:
+                # Fallback to environment variable
+                installation_id = os.getenv("GITHUB_INSTALLATION_ID")
+                if installation_id:
+                    print(
+                        f"🔍 Using installation ID from environment: {installation_id}"
+                    )
+                else:
+                    print(
+                        "❌ No installation ID found in webhook payload or environment"
+                    )
+                    print(f"🔍 Available webhook keys: {list(event_data.keys())}")
+                    return
+
             github_auth = GitHubAppAuth()
-            github_client = github_auth.get_installation_client(installation_id)
+            github_client = github_auth.get_installation_client(int(installation_id))
             print("✅ GitHub authentication successful")
         except Exception as e:
             print(f"❌ GitHub authentication failed: {e}")

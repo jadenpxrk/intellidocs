@@ -5,7 +5,7 @@ Documentation generation using Google Gemini AI
 import os
 import google.generativeai as genai
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 
 def configure_gemini():
@@ -113,71 +113,481 @@ This {file_type} contains {lines} lines of code ({chars} characters).
 
 
 class DocsGenerator:
-    def summarise_file(self, filename: str, content: str) -> str:
-        """
-        Generate comprehensive documentation for a file using Google Gemini AI
+    def __init__(self):
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            print(
+                "⚠️  GEMINI_API_KEY not found. Documentation will use fallback content."
+            )
+            self.client = None
+        else:
+            genai.configure(api_key=api_key)
+            self.client = genai.GenerativeModel("gemini-1.5-flash")
 
-        Args:
-            filename: The name/path of the file
-            content: The content of the file
+    def generate_project_documentation(
+        self, repo_name: str, code_files: Dict[str, str]
+    ) -> Dict[str, str]:
+        """Generate comprehensive project documentation"""
 
-        Returns:
-            Generated documentation as markdown
+        # Analyze the codebase structure
+        project_analysis = self._analyze_project_structure(code_files)
+
+        docs = {}
+
+        # 1. Main README - Project Overview
+        docs["README.md"] = self._generate_project_overview(
+            repo_name, project_analysis, code_files
+        )
+
+        # 2. Architecture Documentation
+        docs["docs/ARCHITECTURE.md"] = self._generate_architecture_docs(
+            project_analysis, code_files
+        )
+
+        # 3. API Documentation (if applicable)
+        if project_analysis.get("has_api"):
+            docs["docs/API.md"] = self._generate_api_docs(project_analysis, code_files)
+
+        # 4. Setup & Installation Guide
+        docs["docs/SETUP.md"] = self._generate_setup_guide(repo_name, project_analysis)
+
+        # 5. Developer Guide
+        docs["docs/DEVELOPMENT.md"] = self._generate_developer_guide(
+            project_analysis, code_files
+        )
+
+        # 6. Module Documentation (organized by functionality)
+        module_docs = self._generate_module_docs(project_analysis, code_files)
+        docs.update(module_docs)
+
+        return docs
+
+    def _analyze_project_structure(self, code_files: Dict[str, str]) -> Dict[str, Any]:
+        """Analyze the project to understand its structure and purpose"""
+
+        analysis = {
+            "project_type": "unknown",
+            "has_api": False,
+            "has_database": False,
+            "has_auth": False,
+            "has_tests": False,
+            "main_technologies": [],
+            "modules": {},
+            "entry_points": [],
+        }
+
+        # Analyze each file to understand project structure
+        for file_path, content in code_files.items():
+            # Detect project type and technologies
+            if "fastapi" in content.lower() or "flask" in content.lower():
+                analysis["project_type"] = "web_api"
+                analysis["has_api"] = True
+                analysis["main_technologies"].append(
+                    "FastAPI" if "fastapi" in content.lower() else "Flask"
+                )
+
+            if "auth" in file_path.lower() or "login" in content.lower():
+                analysis["has_auth"] = True
+
+            if "database" in content.lower() or "sql" in content.lower():
+                analysis["has_database"] = True
+
+            if "test" in file_path.lower():
+                analysis["has_tests"] = True
+
+            if file_path in ["main.py", "app.py", "__main__.py"]:
+                analysis["entry_points"].append(file_path)
+
+            # Group files by module/directory
+            if "/" in file_path:
+                module = file_path.split("/")[0]
+                if module not in analysis["modules"]:
+                    analysis["modules"][module] = []
+                analysis["modules"][module].append(file_path)
+            else:
+                if "root" not in analysis["modules"]:
+                    analysis["modules"]["root"] = []
+                analysis["modules"]["root"].append(file_path)
+
+        return analysis
+
+    def _generate_project_overview(
+        self, repo_name: str, analysis: Dict[str, Any], code_files: Dict[str, str]
+    ) -> str:
+        """Generate main project README"""
+
+        if not self.client:
+            return self._fallback_project_overview(repo_name, analysis)
+
+        # Prepare context for AI
+        context = f"""
+        Project: {repo_name}
+        Type: {analysis['project_type']}
+        Technologies: {', '.join(analysis['main_technologies'])}
+        Has API: {analysis['has_api']}
+        Has Auth: {analysis['has_auth']}
+        Modules: {list(analysis['modules'].keys())}
+        Entry Points: {analysis['entry_points']}
+        
+        Code files overview:
+        {self._get_code_summary(code_files)}
         """
+
+        prompt = f"""
+        Create a comprehensive README.md for this project. Include:
+        
+        1. Project title and brief description
+        2. Key features and capabilities
+        3. Technology stack
+        4. Quick start guide
+        5. Project structure overview
+        6. Links to detailed documentation
+        
+        Make it professional and informative. Use proper markdown formatting.
+        
+        Context: {context}
+        """
+
         try:
-            model = configure_gemini()
-            file_type = get_file_type_context(filename)
+            response = self.client.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"⚠️  AI generation failed for project overview: {e}")
+            return self._fallback_project_overview(repo_name, analysis)
 
-            prompt = f"""Analyze this {file_type} and create comprehensive technical documentation in markdown format.
+    def _generate_architecture_docs(
+        self, analysis: Dict[str, Any], code_files: Dict[str, str]
+    ) -> str:
+        """Generate architecture documentation"""
 
-File: {filename}
+        if not self.client:
+            return self._fallback_architecture_docs(analysis)
 
-Code:
-```
-{content}
-```
+        context = f"""
+        Project Analysis: {analysis}
+        Code Structure: {self._get_code_summary(code_files)}
+        """
 
-Please provide:
+        prompt = f"""
+        Create comprehensive architecture documentation. Include:
+        
+        1. System Overview
+        2. Component Architecture
+        3. Data Flow
+        4. Key Design Decisions
+        5. Module Interactions
+        6. Security Architecture (if applicable)
+        7. Deployment Architecture
+        
+        Use Mermaid diagrams where appropriate. Make it technical but clear.
+        
+        Context: {context}
+        """
 
-1. **Overview** - Brief description of what this file does
-2. **Key Components** - Main functions, classes, or modules
-3. **Dependencies** - External libraries or imports used
-4. **API/Interface** - Public methods, functions, or exported items
-5. **Usage Examples** - How to use key functionality (if applicable)
-6. **Implementation Details** - Important algorithms or design patterns
-7. **Configuration** - Any configuration options or environment variables
-8. **Error Handling** - How errors are managed
-9. **Performance Notes** - Any performance considerations
-10. **Related Files** - Files this might interact with (based on imports/references)
+        try:
+            response = self.client.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"⚠️  AI generation failed for architecture docs: {e}")
+            return self._fallback_architecture_docs(analysis)
 
-Format the response as clean, professional markdown documentation. Be thorough but concise. Focus on what developers need to know to understand and work with this code.
+    def _generate_api_docs(
+        self, analysis: Dict[str, Any], code_files: Dict[str, str]
+    ) -> str:
+        """Generate API documentation"""
 
-If the file is configuration (JSON, YAML, etc.), focus on explaining the configuration options and their purposes.
-If the file is a script, explain what it does and how to run it.
-If the file is a library/module, explain the public API and how to use it.
+        if not self.client:
+            return self._fallback_api_docs()
 
-Start with a header like "# Documentation for {filename}" and include a timestamp.
-"""
+        # Extract API-related code
+        api_code = ""
+        for file_path, content in code_files.items():
+            if any(
+                keyword in content.lower()
+                for keyword in ["@app.", "router", "endpoint", "api"]
+            ):
+                api_code += f"\n--- {file_path} ---\n{content[:2000]}"
 
-            response = model.generate_content(prompt)
+        prompt = f"""
+        Create comprehensive API documentation. Include:
+        
+        1. API Overview
+        2. Authentication
+        3. Endpoints (with examples)
+        4. Request/Response formats
+        5. Error handling
+        6. Rate limiting (if applicable)
+        7. SDKs or client libraries
+        
+        API Code Context: {api_code}
+        """
 
-            if response.text:
-                # Add timestamp to AI-generated docs
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ai_docs = response.text
-                if not ai_docs.startswith("#"):
-                    ai_docs = f"# Documentation for {filename}\n\n**Generated on:** {timestamp}\n\n{ai_docs}"
-                else:
-                    ai_docs = ai_docs.replace(
-                        f"# Documentation for {filename}",
-                        f"# Documentation for {filename}\n\n**Generated on:** {timestamp}",
+        try:
+            response = self.client.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"⚠️  AI generation failed for API docs: {e}")
+            return self._fallback_api_docs()
+
+    def _generate_setup_guide(self, repo_name: str, analysis: Dict[str, Any]) -> str:
+        """Generate setup and installation guide"""
+
+        if not self.client:
+            return self._fallback_setup_guide(repo_name, analysis)
+
+        prompt = f"""
+        Create a detailed setup guide for this {analysis['project_type']} project. Include:
+        
+        1. Prerequisites
+        2. Installation steps
+        3. Configuration
+        4. Environment setup
+        5. Running the application
+        6. Troubleshooting common issues
+        
+        Project info: {repo_name}, Technologies: {analysis['main_technologies']}
+        """
+
+        try:
+            response = self.client.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"⚠️  AI generation failed for setup guide: {e}")
+            return self._fallback_setup_guide(repo_name, analysis)
+
+    def _generate_developer_guide(
+        self, analysis: Dict[str, Any], code_files: Dict[str, str]
+    ) -> str:
+        """Generate developer guide"""
+
+        if not self.client:
+            return self._fallback_developer_guide(analysis)
+
+        prompt = f"""
+        Create a developer guide for contributing to this project. Include:
+        
+        1. Development workflow
+        2. Code structure and conventions
+        3. Testing guidelines
+        4. Debugging tips
+        5. Contributing guidelines
+        6. Code review process
+        
+        Project Analysis: {analysis}
+        """
+
+        try:
+            response = self.client.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"⚠️  AI generation failed for developer guide: {e}")
+            return self._fallback_developer_guide(analysis)
+
+    def _generate_module_docs(
+        self, analysis: Dict[str, Any], code_files: Dict[str, str]
+    ) -> Dict[str, str]:
+        """Generate documentation for each module/directory"""
+
+        module_docs = {}
+
+        for module_name, files in analysis["modules"].items():
+            if module_name == "root":
+                continue  # Skip root files, covered in main docs
+
+            # Get code for this module
+            module_code = ""
+            for file_path in files:
+                if file_path in code_files:
+                    module_code += (
+                        f"\n--- {file_path} ---\n{code_files[file_path][:1500]}"
                     )
 
-                ai_docs += f"\n\n---\n*This documentation was auto-generated by IntelliDocs using Google Gemini AI*\n"
-                return ai_docs
-            else:
-                return generate_fallback_docs(content, filename)
+            if not self.client:
+                module_docs[f"docs/modules/{module_name}.md"] = (
+                    self._fallback_module_docs(module_name, files)
+                )
+                continue
 
-        except Exception as e:
-            print(f"❌ Error generating AI documentation for {filename}: {e}")
-            return generate_fallback_docs(content, filename)
+            prompt = f"""
+            Create documentation for the '{module_name}' module. Include:
+            
+            1. Module purpose and overview
+            2. Key components and classes
+            3. Public APIs and interfaces
+            4. Usage examples
+            5. Integration with other modules
+            
+            Module files: {files}
+            Code context: {module_code}
+            """
+
+            try:
+                response = self.client.generate_content(prompt)
+                module_docs[f"docs/modules/{module_name}.md"] = response.text
+            except Exception as e:
+                print(f"⚠️  AI generation failed for module {module_name}: {e}")
+                module_docs[f"docs/modules/{module_name}.md"] = (
+                    self._fallback_module_docs(module_name, files)
+                )
+
+        return module_docs
+
+    def _get_code_summary(self, code_files: Dict[str, str]) -> str:
+        """Get a summary of all code files"""
+        summary = ""
+        for file_path, content in code_files.items():
+            # Get first few lines and key functions/classes
+            lines = content.split("\n")[:10]
+            summary += f"\n{file_path}: {' '.join(lines)}"[:200] + "..."
+        return summary
+
+    # Fallback methods for when AI is not available
+    def _fallback_project_overview(
+        self, repo_name: str, analysis: Dict[str, Any]
+    ) -> str:
+        return f"""# {repo_name}
+
+## Overview
+This is a {analysis['project_type']} project with the following characteristics:
+- Technologies: {', '.join(analysis['main_technologies']) if analysis['main_technologies'] else 'Not detected'}
+- API: {'Yes' if analysis['has_api'] else 'No'}
+- Authentication: {'Yes' if analysis['has_auth'] else 'No'}
+- Database: {'Yes' if analysis['has_database'] else 'No'}
+
+## Project Structure
+```
+{chr(10).join([f"{module}/" for module in analysis['modules'].keys()])}
+```
+
+## Quick Start
+1. Clone the repository
+2. Install dependencies
+3. Configure environment
+4. Run the application
+
+## Documentation
+- [Architecture](docs/ARCHITECTURE.md)
+- [Setup Guide](docs/SETUP.md)
+- [Development Guide](docs/DEVELOPMENT.md)
+{f"- [API Documentation](docs/API.md)" if analysis['has_api'] else ""}
+"""
+
+    def _fallback_architecture_docs(self, analysis: Dict[str, Any]) -> str:
+        return f"""# Architecture Documentation
+
+## System Overview
+This {analysis['project_type']} system consists of {len(analysis['modules'])} main modules:
+
+{chr(10).join([f"- **{module}**: Core functionality" for module in analysis['modules'].keys()])}
+
+## Component Architecture
+The system follows a modular architecture with clear separation of concerns.
+
+## Key Design Decisions
+- Modular structure for maintainability
+- {'API-first design' if analysis['has_api'] else 'Standalone application'}
+- {'Authentication layer for security' if analysis['has_auth'] else 'No authentication required'}
+
+## Module Interactions
+Each module has specific responsibilities and interacts with others through well-defined interfaces.
+"""
+
+    def _fallback_api_docs(self) -> str:
+        return """# API Documentation
+
+## Overview
+This document describes the API endpoints and their usage.
+
+## Authentication
+[Authentication details to be documented]
+
+## Endpoints
+[API endpoints to be documented based on code analysis]
+
+## Examples
+[Usage examples to be provided]
+"""
+
+    def _fallback_setup_guide(self, repo_name: str, analysis: Dict[str, Any]) -> str:
+        return f"""# Setup Guide
+
+## Prerequisites
+- Python 3.8+
+- {'Database system' if analysis['has_database'] else 'No database required'}
+
+## Installation
+1. Clone the repository:
+   ```bash
+   git clone [repository-url]
+   cd {repo_name}
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Configure environment:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+4. Run the application:
+   ```bash
+   python {analysis['entry_points'][0] if analysis['entry_points'] else 'main.py'}
+   ```
+
+## Configuration
+[Configuration details to be documented]
+"""
+
+    def _fallback_developer_guide(self, analysis: Dict[str, Any]) -> str:
+        return f"""# Developer Guide
+
+## Development Setup
+Follow the setup guide first, then:
+
+1. Install development dependencies
+2. Set up pre-commit hooks
+3. Run tests
+
+## Code Structure
+The project is organized into {len(analysis['modules'])} main modules:
+
+{chr(10).join([f"- `{module}/`: [Module description]" for module in analysis['modules'].keys()])}
+
+## Testing
+{'Tests are located in test files' if analysis['has_tests'] else 'No tests detected - consider adding them'}
+
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
+"""
+
+    def _fallback_module_docs(self, module_name: str, files: List[str]) -> str:
+        return f"""# {module_name.title()} Module
+
+## Overview
+This module contains the following files:
+{chr(10).join([f"- `{file}`" for file in files])}
+
+## Purpose
+[Module purpose to be documented]
+
+## Key Components
+[Key components to be documented based on code analysis]
+
+## Usage
+[Usage examples to be provided]
+"""
+
+    # Legacy method for backward compatibility
+    def summarise_file(self, filename: str, content: str) -> str:
+        """Legacy method - now generates project docs instead"""
+        # This is called from the main system, but we'll ignore it
+        # since we're generating comprehensive docs instead
+        return f"# {filename}\n\nThis file is part of the comprehensive project documentation."

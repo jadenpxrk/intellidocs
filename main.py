@@ -252,9 +252,8 @@ async def process_push_event(event_data):
         # Initialize documentation generator
         docs_generator = DocsGenerator()
 
-        # Process each file and generate documentation
-        docs_content = {}
-        docs_created = 0
+        # Collect all code files and their content
+        code_files_content = {}
 
         for file_path in code_files:
             try:
@@ -269,21 +268,26 @@ async def process_push_event(event_data):
                     continue
 
                 content = file_content.decoded_content.decode("utf-8")
-
-                # Generate documentation
-                print(f"🤖 Generating AI documentation for {file_path}")
-                documentation = docs_generator.summarise_file(file_path, content)
-
-                # Create docs file path
-                docs_file_path = f"docs/{file_path.replace('/', '_')}.md"
-                docs_content[docs_file_path] = documentation
-
-                docs_created += 1
-                print(f"✅ Generated documentation: {docs_file_path}")
+                code_files_content[file_path] = content
+                print(f"✅ Collected content for: {file_path}")
 
             except Exception as e:
                 print(f"❌ Failed to process {file_path}: {e}")
                 continue
+
+        # Generate comprehensive project documentation
+        if code_files_content:
+            print(
+                f"🏗️  Generating comprehensive documentation for {len(code_files_content)} files..."
+            )
+            docs_content = docs_generator.generate_project_documentation(
+                repository["name"], code_files_content
+            )
+            docs_created = len(docs_content)
+            print(f"✅ Generated {docs_created} documentation files")
+        else:
+            docs_content = {}
+            docs_created = 0
 
         # Commit all documentation to the docs branch
         if docs_content:

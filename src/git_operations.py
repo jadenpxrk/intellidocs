@@ -122,10 +122,10 @@ class GitOperations:
                     )
                     print("✅ Created docs branch from latest main")
                 else:
-                    # Update docs branch to match main branch (fast-forward)
+                    # Force update docs branch to match main branch (reset)
                     docs_ref = repo_client.get_git_ref("heads/docs")
-                    docs_ref.edit(sha=latest_main_sha)
-                    print("✅ Updated docs branch to match latest main")
+                    docs_ref.edit(sha=latest_main_sha, force=True)
+                    print("✅ Force updated docs branch to match latest main")
 
                 # Remove source code files from docs branch to keep it clean
                 print("🧹 Cleaning source code files from docs branch...")

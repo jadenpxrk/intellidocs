@@ -1,59 +1,56 @@
-## Developer Guide: Contributing to [Project Name]
+## Developer Guide: Hello World Project
 
-This guide outlines the process for contributing to the [Project Name] project.  Currently, the project focuses on Git operations (based on identified `src/git_operations.py`), but this may expand in the future.
+This guide outlines the contribution process for the "Hello World" project.  While currently simple, this guide establishes a foundation for future growth.
 
-**1. Development Workflow:**
+
+**1. Development Workflow**
 
 1. **Fork the repository:** Create your own fork of the main repository on GitHub.
-2. **Create a branch:** Create a new branch from the `main` branch for your feature or bug fix. Use descriptive branch names (e.g., `feature/add-new-command`, `bugfix/resolve-merge-conflict`).
-3. **Make your changes:** Implement your changes, adhering to the code style and testing guidelines outlined below. Commit your changes frequently with clear and concise commit messages.
-4. **Push your branch:** Push your branch to your forked repository.
-5. **Create a pull request:** Create a pull request from your branch to the `main` branch of the original repository.  Include a clear description of your changes and their purpose.
-6. **Address feedback:** Respond to any feedback from code reviewers and make necessary changes.
+2. **Clone your fork:** Clone your forked repository to your local machine using `git clone <your_fork_url>`.
+3. **Create a branch:** Create a new branch for your feature or bug fix using `git checkout -b <branch_name>`.  Use descriptive branch names (e.g., `feature/add-goodbye-message`, `bugfix/typo-in-greeting`).
+4. **Make your changes:** Implement your changes, following the code structure and conventions outlined below.
+5. **Commit your changes:** Commit your changes with clear and concise messages.  Use the present tense ("Add goodbye message" not "Added goodbye message").
+6. **Push your branch:** Push your branch to your forked repository using `git push origin <branch_name>`.
+7. **Create a pull request:** Create a pull request on the main repository, comparing your branch with the `main` branch.  Provide a detailed description of your changes and address any comments from reviewers.
+
+**2. Code Structure and Conventions**
+
+Currently, the project consists solely of `helloworld.py` in the root directory.  As the project evolves, we'll adopt a more structured approach. For now:
+
+* **File Naming:** Use lowercase with underscores (`snake_case`) for file names (e.g., `my_module.py`).
+* **Variable Naming:** Use lowercase with underscores (`snake_case`) for variable names (e.g., `greeting_message`).
+* **Function Naming:** Use lowercase with underscores (`snake_case`) for function names (e.g., `print_greeting`).
+* **Docstrings:** Include docstrings to explain the purpose of functions and modules.  Use triple quotes (`"""Docstring goes here"""`).
+* **Linting:**  While not currently enforced, consider using a linter (like `pylint` or `flake8`) to maintain code quality.
 
 
-**2. Code Structure and Conventions:**
+**3. Testing Guidelines**
 
-* **Project Layout:** Currently, the primary source code resides in the `src` directory.  We will adopt a more structured layout as the project evolves.  For now, maintain a clear and organized structure within `src`.
-* **File Naming:** Use lowercase with underscores (`snake_case`) for file names (e.g., `git_operations.py`).
-* **Coding Style:**  We will adopt PEP 8 style guidelines.  Use a consistent style throughout the codebase. Tools like `pylint` or `flake8` can help enforce this.
-* **Documentation:**  Document your code using docstrings (following PEP 257).  Explain the purpose, parameters, return values, and exceptions of functions and classes.
+Currently, no tests are in place.  As the project grows, we will implement unit tests using a suitable framework (e.g., `unittest` or `pytest`).  Testing will be a crucial part of future development.
 
+**4. Debugging Tips**
 
-**3. Testing Guidelines:**
+* **`print()` statements:**  Use `print()` statements strategically to inspect variable values and program flow.
+* **Python debugger (`pdb`):**  Use the Python debugger (`pdb`) to step through your code line by line.  Insert `import pdb; pdb.set_trace()` where you want to start debugging.
+* **IDE debuggers:** Most IDEs (e.g., VS Code, PyCharm) have built-in debuggers with more advanced features.
 
-Currently, the project lacks tests.  This is a high priority.  We will implement a comprehensive testing strategy using a suitable framework (e.g., `pytest`).  Until then, thorough manual testing is essential.  For future contributions, the following should be followed:
+**5. Contributing Guidelines**
 
-* **Write tests first (TDD):**  Before writing any code, write unit tests to define the expected behavior.
-* **Aim for high test coverage:** Strive for a high percentage of code coverage to ensure that changes don't introduce regressions.
-* **Test-driven development:**  Use TDD to ensure that features are thoroughly tested.
-* **Integration tests:** As the project grows, integration tests will become vital.
+* **Before contributing:** Review the existing code and understand the project's overall structure and goals.
+* **Focus on small, well-defined tasks:** Break down larger tasks into smaller, manageable units.
+* **Write clean and well-documented code:** Follow the code structure and conventions outlined above.
+* **Test your changes thoroughly:**  Even without formal tests yet, ensure your changes work as expected.
+* **Follow the development workflow:** Follow the steps outlined in section 1.
 
-**4. Debugging Tips:**
+**6. Code Review Process**
 
-* **`print()` statements:** For simple debugging, use `print()` statements to inspect variable values.
-* **Logging:** Use the Python `logging` module for more robust logging, especially in larger projects.
-* **Debuggers:**  Use a debugger like `pdb` (Python Debugger) or an IDE's built-in debugger to step through the code and inspect variables.
-* **Error messages:** Carefully examine error messages to identify the source of the problem.
+Pull requests will be reviewed by other contributors to ensure code quality, maintainability, and adherence to project standards.  Reviewers will look for:
 
-
-**5. Contributing Guidelines:**
-
-* **Issue tracking:** Before starting any work, check if an issue already exists for the problem you want to address. If not, create a new issue with a clear description.
-* **Feature requests:**  Clearly describe the intended functionality of any new features.
-* **Code quality:** Adhere to the code style guidelines and strive to write clean, well-documented code.
-* **Respectful communication:** Be respectful and constructive in all communications.
+* **Correctness:** Does the code work as intended?
+* **Efficiency:** Is the code efficient and well-optimized?
+* **Readability:** Is the code easy to understand and maintain?
+* **Style:** Does the code follow the project's coding conventions?
+* **Testing:** (Future requirement) Are sufficient tests included?
 
 
-**6. Code Review Process:**
-
-All pull requests will be reviewed by at least one other developer before being merged.  Reviewers will consider:
-
-* **Functionality:** Does the code work as expected?
-* **Code quality:** Is the code clean, efficient, and well-documented?
-* **Testing:** Are there sufficient tests to cover the changes?
-* **Maintainability:** Is the code easy to understand and maintain?
-* **Adherence to standards:** Does the code follow the coding style and conventions defined in this guide?
-
-
-This document will be updated as the project evolves.  Please consult this guide for the latest information.  We welcome your contributions and look forward to working with you.
+This guide will be updated as the project evolves.  Contributions to improve this guide are also welcome!

@@ -6,8 +6,7 @@ from urllib.parse import unquote
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from dotenv import load_dotenv
 
-from src.auth import GitHubAuth
-from src.webhook import handle_push_event
+from src.auth import GitHubAppAuth
 from src.git_operations import GitOperations
 from src.docs_generator import DocsGenerator
 
@@ -114,10 +113,9 @@ async def process_push_event(event_data):
 
         # Initialize GitHub authentication
         try:
-            github_auth = GitHubAuth()
-            github_client = github_auth.get_installation_client(
-                repository["owner"]["login"]
-            )
+            installation_id = event_data["installation"]["id"]
+            github_auth = GitHubAppAuth()
+            github_client = github_auth.get_installation_client(installation_id)
             print("✅ GitHub authentication successful")
         except Exception as e:
             print(f"❌ GitHub authentication failed: {e}")

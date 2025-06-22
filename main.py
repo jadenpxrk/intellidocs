@@ -88,15 +88,6 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         print("🚀 Processing push event...")
         background_tasks.add_task(process_push_event, event_data)
         return {"message": "Push event received and processing in background"}
-    elif event_type == "installation":
-        print("🔧 Installation event received!")
-        if "installation" in event_data and "id" in event_data["installation"]:
-            installation_id = event_data["installation"]["id"]
-            print(f"🆔 INSTALLATION ID: {installation_id}")
-            print(
-                f"🆔 Add this to your .env file: GITHUB_INSTALLATION_ID={installation_id}"
-            )
-        return {"message": "Installation event received"}
 
     return {"message": f"Event '{event_type}' received but ignored (not a push event)"}
 

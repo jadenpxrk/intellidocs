@@ -103,24 +103,43 @@ class GitOperations:
             # Handle docs branch creation and file updates
             if not docs_branch_exists:
                 try:
-                    # Create docs branch by creating the first file directly
-                    # This will create a clean branch with only documentation
+                    # Create an orphan docs branch using a different approach
+                    # We'll create an empty commit first, then add files
+                    
+                    # Create a blob for the first documentation file
                     first_doc_path = list(docs_content.keys())[0]
                     first_doc_content = docs_content[first_doc_path]
-
-                    # Create the first file which will create the docs branch
-                    repo_client.create_file(
-                        first_doc_path,
+                    
+                    # Create blob for the content
+                    blob = repo_client.create_git_blob(first_doc_content, "utf-8")
+                    print(f"✅ Created blob for {first_doc_path}")
+                    
+                    # Create tree with the first file
+                    tree_elements = [
+                        {
+                            "path": first_doc_path,
+                            "mode": "100644",
+                            "type": "blob",
+                            "sha": blob.sha
+                        }
+                    ]
+                    tree = repo_client.create_git_tree(tree_elements)
+                    print(f"✅ Created tree")
+                    
+                    # Create commit
+                    commit = repo_client.create_git_commit(
                         "docs: Initialize documentation branch",
-                        first_doc_content,
-                        branch="docs",
+                        tree.sha,
+                        []  # No parents - this creates an orphan branch
                     )
-                    print(f"✅ Created docs branch with: {first_doc_path}")
+                    print(f"✅ Created initial commit")
+                    
+                    # Create the docs branch reference pointing to this commit
+                    repo_client.create_git_ref(ref="refs/heads/docs", sha=commit.sha)
+                    print(f"✅ Created docs branch")
 
-                    # Create remaining documentation files
-                    remaining_docs = {
-                        k: v for k, v in docs_content.items() if k != first_doc_path
-                    }
+                    # Now add remaining documentation files to the docs branch
+                    remaining_docs = {k: v for k, v in docs_content.items() if k != first_doc_path}
                     for doc_path, content in remaining_docs.items():
                         try:
                             repo_client.create_file(

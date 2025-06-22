@@ -122,22 +122,23 @@ class GitOperations:
                     )
                     print("✅ Created docs branch from latest main")
                 else:
-                    # Force update docs branch to match main branch (reset)
-                    docs_ref = repo_client.get_git_ref("heads/docs")
-                    docs_ref.edit(sha=latest_main_sha, force=True)
-                    print("✅ Force updated docs branch to match latest main")
+                    # Don't reset docs branch - just update source files that have changed
+                    print(
+                        "✅ Using existing docs branch (preserving existing documentation)"
+                    )
 
-                # Remove source code files from docs branch to keep it clean
-                print("🧹 Cleaning source code files from docs branch...")
+                # Only remove/update source files that have changed, preserve existing docs
+                print("🧹 Updating only changed source code files in docs branch...")
                 try:
                     # Get all files in the docs branch
                     contents = repo_client.get_contents("", ref="docs")
 
-                    def collect_source_files(contents):
+                    def collect_changed_source_files(contents):
                         files_to_remove = []
                         for content in contents:
                             if content.type == "file":
-                                # Remove source code files but keep documentation and config files
+                                # Only remove source code files that exist in main branch
+                                # This preserves docs for files that were deleted from main
                                 if (
                                     not content.path.startswith("docs/")
                                     and content.path
@@ -151,41 +152,114 @@ class GitOperations:
                                     ]
                                     and not content.path.endswith(".md")
                                 ):
-                                    files_to_remove.append(content)
+                                    # Check if this source file still exists in main
+                                    try:
+                                        repo_client.get_contents(
+                                            content.path, ref="main"
+                                        )
+                                        # File exists in main, so remove it from docs (will be re-added with latest version)
+                                        files_to_remove.append(content)
+                                    except:
+                                        # File doesn't exist in main anymore, keep it in docs
+                                        print(
+                                            f"📚 Preserving docs for deleted file: {content.path}"
+                                        )
                             elif content.type == "dir" and content.name not in [
                                 "docs",
                                 ".git",
                                 ".github",
                             ]:
-                                # Remove source directories like src/, but keep docs/ and config dirs
+                                # Handle source directories
                                 try:
                                     sub_contents = repo_client.get_contents(
                                         content.path, ref="docs"
                                     )
                                     files_to_remove.extend(
-                                        collect_source_files(sub_contents)
+                                        collect_changed_source_files(sub_contents)
                                     )
                                 except:
                                     pass
                         return files_to_remove
 
-                    source_files_to_remove = collect_source_files(contents)
+                    source_files_to_remove = collect_changed_source_files(contents)
 
-                    # Remove source files
+                    # Remove only the source files that still exist in main
                     for file_content in source_files_to_remove:
                         try:
                             repo_client.delete_file(
                                 file_content.path,
-                                f"docs: Remove source file {file_content.path}",
+                                f"docs: Remove source file {file_content.path} for update",
                                 file_content.sha,
                                 branch="docs",
                             )
-                            print(f"🗑️  Removed: {file_content.path}")
+                            print(f"🔄 Removed for update: {file_content.path}")
                         except Exception as e:
                             print(f"⚠️  Could not remove {file_content.path}: {e}")
 
                 except Exception as e:
                     print(f"⚠️  Could not clean source files: {e}")
+
+                # Add current source files from main to docs branch
+                print("📥 Adding latest source files from main to docs branch...")
+                try:
+                    # Get all source files from main branch
+                    main_contents = repo_client.get_contents("", ref="main")
+
+                    def add_source_files_to_docs(contents, path_prefix=""):
+                        for content in contents:
+                            if content.type == "file":
+                                # Add source code files (but not config files)
+                                if (
+                                    not content.path.startswith("docs/")
+                                    and content.path
+                                    not in [
+                                        "README.md",
+                                        "LICENSE",
+                                        ".gitignore",
+                                        "requirements.txt",
+                                        "package.json",
+                                        "Dockerfile",
+                                    ]
+                                    and not content.path.endswith(".md")
+                                ):
+                                    try:
+                                        # Get file content from main
+                                        main_file = repo_client.get_contents(
+                                            content.path, ref="main"
+                                        )
+                                        file_content = main_file.decoded_content.decode(
+                                            "utf-8"
+                                        )
+
+                                        # Add to docs branch
+                                        repo_client.create_file(
+                                            content.path,
+                                            f"docs: Add latest {content.path}",
+                                            file_content,
+                                            branch="docs",
+                                        )
+                                        print(f"📥 Added: {content.path}")
+                                    except Exception as e:
+                                        print(f"⚠️  Could not add {content.path}: {e}")
+                            elif content.type == "dir" and content.name not in [
+                                "docs",
+                                ".git",
+                                ".github",
+                            ]:
+                                try:
+                                    sub_contents = repo_client.get_contents(
+                                        content.path, ref="main"
+                                    )
+                                    add_source_files_to_docs(
+                                        sub_contents, content.path + "/"
+                                    )
+                                except:
+                                    pass
+
+                    add_source_files_to_docs(main_contents)
+
+                except Exception as e:
+                    print(f"⚠️  Could not add source files: {e}")
 
                 # Now add/update documentation files in the docs branch
                 for doc_path, content in docs_content.items():

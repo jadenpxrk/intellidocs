@@ -54,19 +54,52 @@ class WebhookHandler:
                     repo_client, after_sha, "pending", "Generating documentation..."
                 )
 
-                changed_files = await self.get_changed_files(
-                    repo_client, before_sha, after_sha
-                )
-
-                if not changed_files:
-                    self.set_commit_status(
-                        repo_client, after_sha, "success", "No code files changed"
+                # Check if docs branch exists to determine strategy
+                docs_branch_exists = False
+                try:
+                    repo_client.get_branch("docs")
+                    docs_branch_exists = True
+                    print("✅ Found existing docs branch")
+                except:
+                    print(
+                        "📝 Docs branch doesn't exist - will create with full codebase documentation"
                     )
-                    return
 
-                await self.generate_and_commit_docs(
-                    repo_client, repo_full_name, changed_files, after_sha
-                )
+                if docs_branch_exists:
+                    # Docs branch exists - only document changed files (incremental)
+                    changed_files = await self.get_changed_files(
+                        repo_client, before_sha, after_sha
+                    )
+
+                    if not changed_files:
+                        print("📝 No code files to document")
+                        return
+
+                    print(f"📄 Code files to document: {len(changed_files)}")
+                    for file_info in changed_files:
+                        print(f"  • {file_info['filename']}")
+
+                    await self.generate_and_commit_docs(
+                        repo_client, repo_full_name, changed_files, after_sha
+                    )
+                else:
+                    # No docs branch - document entire codebase (initial)
+                    print("🔄 Creating initial documentation for entire codebase...")
+                    all_files = await self.get_all_code_files(repo_client, after_sha)
+
+                    if not all_files:
+                        self.set_commit_status(
+                            repo_client, after_sha, "success", "No code files found"
+                        )
+                        return
+
+                    print(f"📄 Found {len(all_files)} code files in entire repository")
+                    for file_info in all_files:
+                        print(f"  • {file_info['filename']}")
+
+                    await self.generate_and_commit_docs(
+                        repo_client, repo_full_name, all_files, after_sha
+                    )
 
                 self.set_commit_status(
                     repo_client,
@@ -122,6 +155,61 @@ class WebhookHandler:
 
         except Exception as e:
             print(f"Error getting changed files: {e}")
+            return []
+
+    async def get_all_code_files(self, repo_client, commit_sha):
+        """Get all code files in the repository"""
+        try:
+            all_files = []
+            code_extensions = {
+                ".py",
+                ".js",
+                ".ts",
+                ".java",
+                ".cpp",
+                ".c",
+                ".go",
+                ".rs",
+                ".rb",
+                ".php",
+            }
+
+            def collect_files(contents, path_prefix=""):
+                for content in contents:
+                    if content.type == "file":
+                        file_ext = os.path.splitext(content.name)[1]
+                        if file_ext in code_extensions:
+                            try:
+                                file_content = repo_client.get_contents(
+                                    content.path, ref=commit_sha
+                                ).decoded_content.decode("utf-8")
+                                all_files.append(
+                                    {
+                                        "filename": content.path,
+                                        "content": file_content,
+                                    }
+                                )
+                                print(f"📖 Processing: {content.path}")
+                                print(f"✅ Collected content for: {content.path}")
+                            except Exception as e:
+                                print(f"⚠️  Could not read {content.path}: {e}")
+                    elif content.type == "dir" and not content.name.startswith("."):
+                        try:
+                            sub_contents = repo_client.get_contents(
+                                content.path, ref=commit_sha
+                            )
+                            collect_files(sub_contents, content.path + "/")
+                        except Exception as e:
+                            print(f"⚠️  Could not read directory {content.path}: {e}")
+
+            # Start from root
+            root_contents = repo_client.get_contents("", ref=commit_sha)
+            collect_files(root_contents)
+
+            return all_files
+
+        except Exception as e:
+            print(f"Error getting all code files: {e}")
             return []
 
     async def generate_and_commit_docs(

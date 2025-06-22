@@ -115,13 +115,14 @@ class GitOperations:
                     print(f"✅ Created blob for {first_doc_path}")
                     
                     # Create tree with the first file
+                    from github import InputGitTreeElement
                     tree_elements = [
-                        {
-                            "path": first_doc_path,
-                            "mode": "100644",
-                            "type": "blob",
-                            "sha": blob.sha
-                        }
+                        InputGitTreeElement(
+                            path=first_doc_path,
+                            mode="100644",
+                            type="blob",
+                            sha=blob.sha
+                        )
                     ]
                     tree = repo_client.create_git_tree(tree_elements)
                     print(f"✅ Created tree")

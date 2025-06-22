@@ -192,14 +192,36 @@ class GitOperations:
                             if main_path in docs_files:
                                 # File exists in docs - update it
                                 docs_file = docs_files[main_path]
-                                repo_client.update_file(
-                                    main_path,
-                                    f"docs: Update {main_path} from main",
-                                    file_content,
-                                    docs_file.sha,
-                                    branch="docs",
-                                )
-                                print(f"🔄 Updated: {main_path}")
+                                try:
+                                    repo_client.update_file(
+                                        main_path,
+                                        f"docs: Update {main_path} from main",
+                                        file_content,
+                                        docs_file.sha,
+                                        branch="docs",
+                                    )
+                                    print(f"🔄 Updated: {main_path}")
+                                except Exception as update_error:
+                                    if "does not match" in str(update_error):
+                                        # SHA mismatch - get fresh SHA and retry
+                                        try:
+                                            fresh_file = repo_client.get_contents(
+                                                main_path, ref="docs"
+                                            )
+                                            repo_client.update_file(
+                                                main_path,
+                                                f"docs: Update {main_path} from main",
+                                                file_content,
+                                                fresh_file.sha,
+                                                branch="docs",
+                                            )
+                                            print(f"🔄 Updated: {main_path} (retried)")
+                                        except Exception as retry_error:
+                                            print(
+                                                f"⚠️  Could not update {main_path} after retry: {retry_error}"
+                                            )
+                                    else:
+                                        raise update_error
                             else:
                                 # File doesn't exist in docs - add it
                                 repo_client.create_file(

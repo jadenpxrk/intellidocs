@@ -14,7 +14,32 @@ class WebhookHandler:
     async def handle_push(self, event_data):
         try:
             repo_full_name = event_data["repository"]["full_name"]
-            installation_id = event_data["installation"]["id"]
+
+            print(f"🔍 Debug: Webhook payload keys: {list(event_data.keys())}")
+            if "installation" in event_data:
+                print(f"🔍 Debug: Installation data: {event_data['installation']}")
+
+            installation_id = None
+            if "installation" in event_data and "id" in event_data["installation"]:
+                installation_id = event_data["installation"]["id"]
+                print(f"🔍 Debug: Found installation ID in payload: {installation_id}")
+            else:
+                installation_id = os.getenv("GITHUB_INSTALLATION_ID")
+                if installation_id:
+                    print(
+                        f"🔍 Debug: Using installation ID from env: {installation_id}"
+                    )
+                else:
+                    print(
+                        "❌ Debug: No installation ID found in webhook payload or environment variables"
+                    )
+                    print(
+                        f"❌ Debug: Available webhook keys: {list(event_data.keys())}"
+                    )
+                    raise ValueError(
+                        "No installation ID found in webhook payload or environment variables"
+                    )
+
             before_sha = event_data["before"]
             after_sha = event_data["after"]
             ref = event_data["ref"]

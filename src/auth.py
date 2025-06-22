@@ -1,5 +1,8 @@
 import os
-from github import Github, Auth
+import jwt
+import time
+import requests
+from github import Github
 from cryptography.hazmat.primitives import serialization
 
 
@@ -25,15 +28,35 @@ class GitHubAppAuth:
                 "Ensure GITHUB_PRIVATE_KEY_PATH is set correctly."
             )
 
+    def get_jwt_token(self):
+        now = int(time.time())
+        payload = {"iat": now - 60, "exp": now + 600, "iss": int(self.app_id)}
+        return jwt.encode(payload, self.private_key, algorithm="RS256")
+
+    def get_installation_access_token(self, installation_id):
+        jwt_token = self.get_jwt_token()
+
+        headers = {
+            "Authorization": f"Bearer {jwt_token}",
+            "Accept": "application/vnd.github.v3+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+
+        url = (
+            f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+        )
+        response = requests.post(url, headers=headers)
+
+        if response.status_code != 201:
+            raise Exception(
+                f"Failed to get access token: {response.status_code} - {response.text}"
+            )
+
+        return response.json()["token"]
+
     def get_installation_client(self, installation_id):
-        # Create App authentication
-        app_auth = Auth.AppAuth(int(self.app_id), self.private_key)
-
-        # Create installation authentication
-        installation_auth = Auth.AppInstallationAuth(app_auth, installation_id)
-
-        # Return GitHub client with installation auth
-        return Github(auth=installation_auth)
+        access_token = self.get_installation_access_token(installation_id)
+        return Github(access_token)
 
     def get_repo_client(self, repo_full_name, installation_id):
         client = self.get_installation_client(installation_id)

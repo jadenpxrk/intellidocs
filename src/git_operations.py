@@ -102,12 +102,13 @@ class GitOperations:
 
             # Handle docs branch creation and file updates
             if not docs_branch_exists:
-                # Create docs branch with first documentation file
-                first_doc_path = list(docs_content.keys())[0]
-                first_doc_content = docs_content[first_doc_path]
-
                 try:
-                    # Create the docs branch with the first file
+                    # Create docs branch by creating the first file directly
+                    # This will create a clean branch with only documentation
+                    first_doc_path = list(docs_content.keys())[0]
+                    first_doc_content = docs_content[first_doc_path]
+
+                    # Create the first file which will create the docs branch
                     repo_client.create_file(
                         first_doc_path,
                         "docs: Initialize documentation branch",
@@ -116,7 +117,7 @@ class GitOperations:
                     )
                     print(f"✅ Created docs branch with: {first_doc_path}")
 
-                    # Create remaining files
+                    # Create remaining documentation files
                     remaining_docs = {
                         k: v for k, v in docs_content.items() if k != first_doc_path
                     }
